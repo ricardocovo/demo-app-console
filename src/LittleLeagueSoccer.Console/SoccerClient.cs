@@ -19,6 +19,21 @@ public sealed class SoccerClient(HttpClient http)
         if (document.RootElement.ValueKind != expected ||
             (view.IsList && document.RootElement.EnumerateArray().Any(row => row.ValueKind != JsonValueKind.Object)))
             throw new ApiException($"GET /{view.Path}: expected a JSON {(view.IsList ? "array of objects" : "object")}. Check the API URL.");
+
+        if (view.IsEntity)
+        {
+            string[] identifiers = view.Resource == Resource.Championships ? ["id"]
+                : view.Resource == Resource.Teams ? ["id", "championshipId"]
+                : view.Resource == Resource.Players ? ["id", "teamId"]
+                : view.Resource == Resource.Games ? ["id", "teamAId", "teamBId"]
+                : ["id", "gameId", "playerId"];
+            foreach (var field in identifiers)
+            {
+                if (!document.RootElement.TryGetProperty(field, out var value) ||
+                    value.ValueKind != JsonValueKind.Number || !value.TryGetInt32(out var id) || id <= 0)
+                    throw new ApiException($"GET /{view.Path}: expected a positive integer '{field}'. Check the API response.");
+            }
+        }
         return document.RootElement.Clone();
     }
 }
